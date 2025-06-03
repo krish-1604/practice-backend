@@ -5,7 +5,7 @@ async function getAllUsers(req, res) {
   try {
     conn = await pool.getConnection();
     // MariaDB returns results directly, not in an array
-    const rows = await conn.query('SELECT * FROM users');
+    const [rows] = await conn.query('SELECT * FROM users');
     res.json(rows);
   } catch (err) {
     console.error(err);
@@ -26,11 +26,11 @@ async function addUser(req, res) {
     conn = await pool.getConnection();
     // MariaDB returns results directly, not in an array
     const result = await conn.query(
-      'INSERT INTO users (name, email) VALUES (?, ?)', 
+      'INSERT INTO users (name, email) VALUES (?, ?)',
       [name, email]
     );
     const newUser = {
-        id: result.insertId.toString(),  // convert BigInt to string
+        id: result[0].insertId.toString(),  // convert BigInt to string
         name,
         email
         };
@@ -38,10 +38,10 @@ async function addUser(req, res) {
         res.status(201).json(newUser);
   } catch (err) {
     console.error(err);
-    if (err.code === 'ER_DUP_ENTRY') {
+    if (err.code === 'ER_DUP_ENTRY'){
       res.status(400).json({ error: 'Email already exists' });
     } else {
-      res.status(500).json({ error: 'Database error' });
+      res.status(500).json({ error: err.message ||'Internal Server Error' });
     }
   } finally {
     if (conn) conn.release();

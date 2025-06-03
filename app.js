@@ -1,7 +1,9 @@
 const express = require('express');
 const app = express();
 const cors = require('cors');
-app.use(cors({ origin: 'http://localhost:3000' }));
+
+app.use(cors({origin: 'https://main.d3zzjjalhmqmq.amplifyapp.com'}));
+
 const userRoutes = require('./routes/users');
 
 app.use(express.json());
