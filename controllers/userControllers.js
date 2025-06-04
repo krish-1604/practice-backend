@@ -3,10 +3,32 @@ const pool = require('../config/db');
 async function getAllUsers(req, res) {
   let conn;
   try {
+    // Get offset-based parameters from query string
+    const start = parseInt(req.query.start) || 0;
+    const limit = parseInt(req.query.limit) || 10;
+
     conn = await pool.getConnection();
-    // MariaDB returns results directly, not in an array
-    const [rows] = await conn.query('SELECT * FROM users');
-    res.json(rows);
+    // Get total count to determine if there are more records
+    const [countResult] = await conn.query('SELECT COUNT(*) as total FROM users');
+    const totalUsers = countResult[0].total;
+    
+    // Get users with offset and limit
+    const [rows] = await conn.query(
+      'SELECT * FROM users ORDER BY id DESC LIMIT ? OFFSET ?',
+      [limit, start]
+    );
+    
+    // Check if there are more records available
+    const hasMore = (start + limit) < totalUsers;
+    
+    res.json({
+      users: rows,
+      hasMore,
+      totalUsers,
+      nextStart: hasMore ? start + limit : null,
+      currentStart: start,
+      limit
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Database error' });
@@ -14,7 +36,6 @@ async function getAllUsers(req, res) {
     if (conn) conn.release();
   }
 }
-
 async function addUser(req, res) {
   const { name, email } = req.body;
   if (!name || !email) {
