@@ -18,12 +18,12 @@ app.use(cors({
 }));
 
 const userRoutes = require('./routes/users');
-const igRoutes = require('./routes/ig');
+// const igRoutes = require('./routes/ig');
 
 app.use(express.json());
 
 app.use('/users', userRoutes);
-app.use('/ig', igRoutes);
+// app.use('/ig', igRoutes);
 
 const PORT = 8000;
 app.listen(PORT, () => {
