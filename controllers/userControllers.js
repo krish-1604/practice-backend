@@ -1,15 +1,14 @@
-const db1 = require('../config/db');
+const { db1 } = require('../config/db'); // Destructure to get the actual pool
 
 async function getAllUsers(req, res) {
-  let conn;
   try {
     const search = req.query.search?.trim() || '';
     const searchBy = req.query.searchBy || 'all';
 
-    conn = await db1.getConnection();
     if (search) {
       let whereConditions = [];
       let queryParams = [];
+
       if (searchBy === 'name' || searchBy === 'all') {
         whereConditions.push('name LIKE ?');
         queryParams.push(`%${search}%`);
@@ -18,34 +17,32 @@ async function getAllUsers(req, res) {
         whereConditions.push('email LIKE ?');
         queryParams.push(`%${search}%`);
       }
+
       const whereClause = ` WHERE ${whereConditions.join(' OR ')}`;
       const dataQuery = `SELECT * FROM users${whereClause} ORDER BY id DESC`;
-      const [rows] = await conn.query(dataQuery, queryParams);
+      const [rows] = await db1.query(dataQuery, queryParams);
+
       res.json({
         users: rows,
         totalUsers: rows.length,
         isSearch: true,
-        search: search,
-        searchBy: searchBy
+        search,
+        searchBy
       });
     } else {
-      // Regular pagination for non-search requests
       const start = parseInt(req.query.start) || 0;
       const limit = parseInt(req.query.limit) || 10;
-      
-      // Get total count
-      const [countResult] = await conn.query('SELECT COUNT(*) as total FROM users');
+
+      const [countResult] = await db1.query('SELECT COUNT(*) as total FROM users');
       const totalUsers = countResult[0].total;
-      
-      // Get users with pagination
-      const [rows] = await conn.query(
+
+      const [rows] = await db1.query(
         'SELECT * FROM users ORDER BY id DESC LIMIT ? OFFSET ?',
         [limit, start]
       );
-      
-      // Check if there are more records available
+
       const hasMore = (start + limit) < totalUsers;
-      
+
       res.json({
         users: rows,
         hasMore,
@@ -59,17 +56,12 @@ async function getAllUsers(req, res) {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Database error' });
-  } finally {
-    if (conn) conn.release();
   }
 }
 
-// Add a dedicated search endpoint for more complex searches
 async function searchUsers(req, res) {
-  let conn;
   try {
     const { query, searchBy = 'all', start = 0, limit = 10 } = req.query;
-    
     if (!query || query.trim() === '') {
       return res.status(400).json({ error: 'Search query is required' });
     }
@@ -78,12 +70,9 @@ async function searchUsers(req, res) {
     const startNum = parseInt(start);
     const limitNum = parseInt(limit);
 
-    conn = await db1.getConnection();
-    
     let whereConditions = [];
     let queryParams = [];
-    
-    // Build search conditions based on searchBy parameter
+
     switch (searchBy) {
       case 'name':
         whereConditions.push('name LIKE ?');
@@ -101,25 +90,25 @@ async function searchUsers(req, res) {
         whereConditions.push('name LIKE ?');
         queryParams.push(`${searchTerm}%`);
         break;
-      default: // 'all'
+      default:
         whereConditions.push('name LIKE ?', 'email LIKE ?');
         queryParams.push(`%${searchTerm}%`, `%${searchTerm}%`);
     }
-    
+
     const whereClause = whereConditions.join(' OR ');
-    
-    // Get total count
-    const countQuery = `SELECT COUNT(*) as total FROM users WHERE ${whereClause}`;
-    const [countResult] = await conn.query(countQuery, queryParams);
+    const [countResult] = await db1.query(
+      `SELECT COUNT(*) as total FROM users WHERE ${whereClause}`,
+      queryParams
+    );
     const totalResults = countResult[0].total;
-    
-    // Get search results with pagination
-    const dataQuery = `SELECT * FROM users WHERE ${whereClause} ORDER BY id DESC LIMIT ? OFFSET ?`;
-    const dataParams = [...queryParams, limitNum, startNum];
-    const [rows] = await conn.query(dataQuery, dataParams);
-    
+
+    const [rows] = await db1.query(
+      `SELECT * FROM users WHERE ${whereClause} ORDER BY id DESC LIMIT ? OFFSET ?`,
+      [...queryParams, limitNum, startNum]
+    );
+
     const hasMore = (startNum + limitNum) < totalResults;
-    
+
     res.json({
       users: rows,
       totalResults,
@@ -130,12 +119,9 @@ async function searchUsers(req, res) {
       searchQuery: searchTerm,
       searchBy
     });
-    
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Search error' });
-  } finally {
-    if (conn) conn.release();
   }
 }
 
@@ -145,38 +131,31 @@ async function addUser(req, res) {
     return res.status(400).json({ error: 'Name and email are required' });
   }
 
-  let conn;
   try {
-    conn = await db1.getConnection();
-    const result = await conn.query(
+    const [result] = await db1.query(
       'INSERT INTO users (name, email) VALUES (?, ?)',
       [name, email]
     );
-    const newUser = {
-        id: result[0].insertId.toString(),
-        name,
-        email
-        };
-        console.log("User to send:", newUser);
-        res.status(201).json(newUser);
+
+    res.status(201).json({
+      id: result.insertId,
+      name,
+      email,
+    });
   } catch (err) {
     console.error(err);
-    if (err.code === 'ER_DUP_ENTRY'){
+    if (err.code === 'ER_DUP_ENTRY') {
       res.status(400).json({ error: 'Email already exists' });
     } else {
-      res.status(500).json({ error: err.message ||'Internal Server Error' });
+      res.status(500).json({ error: err.message || 'Internal Server Error' });
     }
-  } finally {
-    if (conn) conn.release();
   }
 }
 
 async function deleteUser(req, res) {
   const { id } = req.params;
-  let conn;
   try {
-    conn = await db1.getConnection();
-    const result = await conn.query('DELETE FROM users WHERE id = ?', [id]);
+    const [result] = await db1.query('DELETE FROM users WHERE id = ?', [id]);
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -184,8 +163,6 @@ async function deleteUser(req, res) {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Database error' });
-  } finally {
-    if (conn) conn.release();
   }
 }
 
@@ -196,10 +173,8 @@ async function editUser(req, res) {
     return res.status(400).json({ error: 'Name and email are required' });
   }
 
-  let conn;
   try {
-    conn = await db1.getConnection();
-    const result = await conn.query(
+    const [result] = await db1.query(
       'UPDATE users SET name = ?, email = ? WHERE id = ?',
       [name, email, id]
     );
@@ -214,8 +189,6 @@ async function editUser(req, res) {
     } else {
       res.status(500).json({ error: 'Database error' });
     }
-  } finally {
-    if (conn) conn.release();
   }
 }
 
