@@ -1,35 +1,26 @@
-const pool = require('../config/db');
+const db1 = require('../config/db');
 
 async function getAllUsers(req, res) {
   let conn;
   try {
-    // Get search parameters
     const search = req.query.search?.trim() || '';
-    const searchBy = req.query.searchBy || 'all'; // 'name', 'email', or 'all'
+    const searchBy = req.query.searchBy || 'all';
 
-    conn = await pool.getConnection();
-    
-    // If there's a search query, return ALL matching results
+    conn = await db1.getConnection();
     if (search) {
       let whereConditions = [];
       let queryParams = [];
-      
       if (searchBy === 'name' || searchBy === 'all') {
         whereConditions.push('name LIKE ?');
         queryParams.push(`%${search}%`);
       }
-      
       if (searchBy === 'email' || searchBy === 'all') {
         whereConditions.push('email LIKE ?');
         queryParams.push(`%${search}%`);
       }
-      
       const whereClause = ` WHERE ${whereConditions.join(' OR ')}`;
-      
-      // Get ALL matching users (no pagination for search)
       const dataQuery = `SELECT * FROM users${whereClause} ORDER BY id DESC`;
       const [rows] = await conn.query(dataQuery, queryParams);
-      
       res.json({
         users: rows,
         totalUsers: rows.length,
@@ -87,7 +78,7 @@ async function searchUsers(req, res) {
     const startNum = parseInt(start);
     const limitNum = parseInt(limit);
 
-    conn = await pool.getConnection();
+    conn = await db1.getConnection();
     
     let whereConditions = [];
     let queryParams = [];
@@ -156,7 +147,7 @@ async function addUser(req, res) {
 
   let conn;
   try {
-    conn = await pool.getConnection();
+    conn = await db1.getConnection();
     const result = await conn.query(
       'INSERT INTO users (name, email) VALUES (?, ?)',
       [name, email]
@@ -184,7 +175,7 @@ async function deleteUser(req, res) {
   const { id } = req.params;
   let conn;
   try {
-    conn = await pool.getConnection();
+    conn = await db1.getConnection();
     const result = await conn.query('DELETE FROM users WHERE id = ?', [id]);
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: 'User not found' });
@@ -207,7 +198,7 @@ async function editUser(req, res) {
 
   let conn;
   try {
-    conn = await pool.getConnection();
+    conn = await db1.getConnection();
     const result = await conn.query(
       'UPDATE users SET name = ?, email = ? WHERE id = ?',
       [name, email, id]
