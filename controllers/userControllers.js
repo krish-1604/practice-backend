@@ -1,4 +1,4 @@
-const pool = require('../config/db');
+const { pool } = require('../config/db'); // Import pool from the updated config
 
 async function getAllUsers(req, res) {
   let conn;
