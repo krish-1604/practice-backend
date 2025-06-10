@@ -1,35 +1,25 @@
-const { pool } = require('../config/db'); // Import pool from the updated config
+const { pool } = require('../config/db');
 
 async function getAllUsers(req, res) {
   let conn;
   try {
-    // Get search parameters
     const search = req.query.search?.trim() || '';
-    const searchBy = req.query.searchBy || 'all'; // 'name', 'email', or 'all'
-
+    const searchBy = req.query.searchBy || 'all'; 
     conn = await pool.getConnection();
-    
-    // If there's a search query, return ALL matching results
     if (search) {
       let whereConditions = [];
       let queryParams = [];
-      
       if (searchBy === 'name' || searchBy === 'all') {
         whereConditions.push('name LIKE ?');
         queryParams.push(`%${search}%`);
       }
-      
       if (searchBy === 'email' || searchBy === 'all') {
         whereConditions.push('email LIKE ?');
         queryParams.push(`%${search}%`);
       }
-      
       const whereClause = ` WHERE ${whereConditions.join(' OR ')}`;
-      
-      // Get ALL matching users (no pagination for search)
       const dataQuery = `SELECT * FROM users${whereClause} ORDER BY id DESC`;
       const [rows] = await conn.query(dataQuery, queryParams);
-      
       res.json({
         users: rows,
         totalUsers: rows.length,
@@ -38,21 +28,14 @@ async function getAllUsers(req, res) {
         searchBy: searchBy
       });
     } else {
-      // Regular pagination for non-search requests
       const start = parseInt(req.query.start) || 0;
       const limit = parseInt(req.query.limit) || 10;
-      
-      // Get total count
       const [countResult] = await conn.query('SELECT COUNT(*) as total FROM users');
       const totalUsers = countResult[0].total;
-      
-      // Get users with pagination
       const [rows] = await conn.query(
         'SELECT * FROM users ORDER BY id DESC LIMIT ? OFFSET ?',
         [limit, start]
       );
-      
-      // Check if there are more records available
       const hasMore = (start + limit) < totalUsers;
       
       res.json({
@@ -72,8 +55,6 @@ async function getAllUsers(req, res) {
     if (conn) conn.release();
   }
 }
-
-// Add a dedicated search endpoint for more complex searches
 async function searchUsers(req, res) {
   let conn;
   try {
@@ -91,8 +72,6 @@ async function searchUsers(req, res) {
     
     let whereConditions = [];
     let queryParams = [];
-    
-    // Build search conditions based on searchBy parameter
     switch (searchBy) {
       case 'name':
         whereConditions.push('name LIKE ?');
@@ -110,19 +89,15 @@ async function searchUsers(req, res) {
         whereConditions.push('name LIKE ?');
         queryParams.push(`${searchTerm}%`);
         break;
-      default: // 'all'
+      default:
         whereConditions.push('name LIKE ?', 'email LIKE ?');
         queryParams.push(`%${searchTerm}%`, `%${searchTerm}%`);
     }
     
     const whereClause = whereConditions.join(' OR ');
-    
-    // Get total count
     const countQuery = `SELECT COUNT(*) as total FROM users WHERE ${whereClause}`;
     const [countResult] = await conn.query(countQuery, queryParams);
     const totalResults = countResult[0].total;
-    
-    // Get search results with pagination
     const dataQuery = `SELECT * FROM users WHERE ${whereClause} ORDER BY id DESC LIMIT ? OFFSET ?`;
     const dataParams = [...queryParams, limitNum, startNum];
     const [rows] = await conn.query(dataQuery, dataParams);
